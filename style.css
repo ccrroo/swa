@@ -1,0 +1,68 @@
+/* 画面全体のリセットとベースカラーの設定 */
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #4A1C54;
+    /* 指定された紫の背景色 */
+    color: #70FF70;
+    /* 指定された緑のアクセントカラー */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* 画面の中央に配置するためのFlexbox設定 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    /* JSで画面遷移する際のフェードアウト用アニメーション */
+    transition: opacity 1s ease-in-out;
+}
+
+#entrance-container {
+    text-align: center;
+}
+
+h1 {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+    /* 緑色の文字が少し発光しているように見せるエフェクト */
+    text-shadow: 0 0 15px rgba(112, 255, 112, 0.4);
+}
+
+p {
+    font-size: 1.2rem;
+    margin-bottom: 40px;
+    opacity: 0.8;
+}
+
+
+/* ボタンのデザイン */
+
+#enter-button {
+    background-color: transparent;
+    color: #70FF70;
+    border: 2px solid #70FF70;
+    padding: 15px 50px;
+    /* 横幅を少し広げた */
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    /* --- ここを修正 --- */
+    border-radius: 50px;
+    /* 完全に丸くする */
+    /* ----------------- */
+    transition: all 0.3s ease;
+    box-shadow: 0 0 15px rgba(112, 255, 112, 0.2);
+}
+
+#enter-button:hover {
+    background-color: #70FF70;
+    color: #4A1C54;
+    box-shadow: 0 0 25px rgba(112, 255, 112, 0.6);
+    transform: scale(1.05);
+}
+
+.fade-out {
+    opacity: 0;
+}

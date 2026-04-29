@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swataro 3D World</title>
+    <link rel="stylesheet" href="3d-style.css">
+</head>
+
+<body>
+    <div id="threejs-container"></div>
+
+    <div id="ui-overlay">
+        <div id="instructions">
+            <h2>Swataro's World</h2>
+            <p>クリックして開始</p>
+            <!-- ★ 左クリック: 召喚 を追加しました -->
+            <p class="controls-text">WASD: 移動 | Shift: 走る | 左クリック: 一斉召喚 | マウス: 視点移動</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+    <script src="3d-world.js"></script>
+</body>
+
+</html>
