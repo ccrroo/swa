@@ -5,9 +5,20 @@ let moveForward = false,
     moveRight = false;
 let isRunning = false;
 
-// ★ 一斉召喚（左クリック）の判定用
+// ★ ジャンプ用の変数
+let canJump = false;
+
+// ★ 召喚ギミック用の変数
 let isSummoning = false;
-let ringRotation = 0; // 輪の回転角度
+let ringRotation = 0;
+let currentRingRadius = 5000; // 輪の初期サイズ
+
+// ★ レーザービーム用の配列
+let lasers = [];
+
+// ★ 30秒イベント用の変数
+let isAngryPhase = false;
+let angryTexture = null;
 
 let prevTime = performance.now();
 const velocity = new THREE.Vector3();
@@ -18,10 +29,8 @@ let swataros = [];
 function init() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x4A1C54);
-    // スケールが大きくなったので、霧をもっと薄くして遠くまで見えるように
     scene.fog = new THREE.FogExp2(0x4A1C54, 0.0003);
 
-    // ★ Swataroが超巨大なので、目の高さを50にアップ
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
     camera.position.y = 50;
 
@@ -62,6 +71,11 @@ function init() {
             case 'ShiftRight':
                 isRunning = true;
                 break;
+                // ★ スペースキーでジャンプ
+            case 'Space':
+                if (canJump === true) velocity.y += 1800; // ジャンプ力
+                canJump = false;
+                break;
         }
     };
     const onKeyUp = (event) => {
@@ -87,46 +101,58 @@ function init() {
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
 
-    // ★ マウスクリックでの一斉召喚イベント
+    // ★ 右クリック時のブラウザメニューを無効化
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // ★ マウスクリックの制御
     document.addEventListener('mousedown', (event) => {
-        if (controls.isLocked && event.button === 0) { // 左クリック
+        if (!controls.isLocked) return;
+
+        if (event.button === 0) {
+            // 左クリック: レーザー発射
+            shootLaser();
+        } else if (event.button === 2) {
+            // 右クリック: 召喚
             isSummoning = true;
         }
     });
     document.addEventListener('mouseup', (event) => {
-        if (event.button === 0) {
+        if (event.button === 2) {
             isSummoning = false;
+            currentRingRadius = 5000; // クリックを離したら輪のサイズをリセット
         }
     });
 
-    // ★ 地面を「水色」にし、その上に「黒い格子(Grid)」を敷く
     const floorSize = 10000;
-
-    // 1. 水色のベース床
     const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
     floorGeometry.rotateX(-Math.PI / 2);
-    const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x87CEEB }); // 水色
+    const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x87CEEB });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     scene.add(floor);
 
-    // 2. 黒い格子のライン
     const gridHelper = new THREE.GridHelper(floorSize, 150, 0x000000, 0x000000);
-    gridHelper.position.y = 1; // 床と重なってチラつかないように少しだけ上に浮かす
+    gridHelper.position.y = 1;
     scene.add(gridHelper);
 
     const textureLoader = new THREE.TextureLoader();
+
+    // ★ 30秒後用の「赤い目」テクスチャを事前に読み込んでおく
+    textureLoader.load('swatarore.png', (texture) => {
+        angryTexture = texture;
+    });
+
+    // 通常のSwataroの読み込み
     textureLoader.load(
         'swataro.png',
         function(texture) {
             const imageAspect = texture.image.width / texture.image.height;
-            // ★ Swataroをさらに超・巨大化 (高さを250に設定！)
             const height = 250;
             const width = height * imageAspect;
             const geometry = new THREE.PlaneGeometry(width, height);
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
 
             for (let i = 0; i < 50; i++) {
-                const swataro = new THREE.Mesh(geometry, material);
+                const swataro = new THREE.Mesh(geometry, material.clone()); // ★後で個別に変更できるようにcloneする
 
                 const startX = (Math.random() - 0.5) * 6000;
                 const startZ = (Math.random() - 0.5) * 6000;
@@ -134,7 +160,6 @@ function init() {
 
                 swataro.userData = {
                     baseY: height / 2,
-                    // ★ サイズに合わせて移動速度もスケールアップ
                     speedX: (Math.random() - 0.5) * 400,
                     speedZ: (Math.random() - 0.5) * 400,
                     jumpSpeed: Math.random() * 5 + 5,
@@ -145,23 +170,34 @@ function init() {
                 scene.add(swataro);
                 swataros.push(swataro);
             }
-        },
-        undefined,
-        function(err) {
-            console.warn("画像エラー: 代替ブロックを出します");
-            for (let i = 0; i < 50; i++) {
-                const boxGeo = new THREE.BoxGeometry(100, 100, 100);
-                const boxMat = new THREE.MeshStandardMaterial({ color: 0xFFD700 });
-                const box = new THREE.Mesh(boxGeo, boxMat);
-                box.position.set((Math.random() - 0.5) * 6000, 50, (Math.random() - 0.5) * 6000);
-                box.userData = { baseY: 50, speedX: (Math.random() - 0.5) * 400, speedZ: (Math.random() - 0.5) * 400, jumpSpeed: Math.random() * 5 + 5, jumpHeight: Math.random() * 80 + 20, timeOffset: Math.random() * Math.PI * 2 };
-                scene.add(box);
-                swataros.push(box);
-            }
         }
     );
 
     window.addEventListener('resize', onWindowResize);
+}
+
+// ★ レーザーを発射する関数
+function shootLaser() {
+    // レーザーの形状 (太さ5, 長さ5000のビーム)
+    const length = 5000;
+    const geometry = new THREE.CylinderGeometry(5, 5, length, 8);
+    geometry.rotateX(Math.PI / 2); // 奥行き方向に向ける
+    geometry.translate(0, 0, -length / 2); // カメラ位置が始点になるようにずらす
+
+    // 黄色く光るマテリアル
+    const material = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 1.0 });
+    const laser = new THREE.Mesh(geometry, material);
+
+    // カメラの位置と向きをレーザーにコピー
+    camera.getWorldPosition(laser.position);
+    laser.quaternion.copy(camera.quaternion);
+
+    // 目の高さから少し右下から発射されている感を出す微調整（不要なら消してもOK）
+    laser.translateY(-10);
+    laser.translateX(10);
+
+    scene.add(laser);
+    lasers.push(laser); // アニメーション用に配列に追加
 }
 
 function onWindowResize() {
@@ -177,67 +213,102 @@ function animate() {
     const delta = (time - prevTime) / 1000;
     const timeInSeconds = time / 1000;
 
-    // ★ Swataroたちの行動制御
+    // ★ 30秒経過イベントの監視
+    if (!isAngryPhase && time > 30000) { // 30000ミリ秒 = 30秒
+        isAngryPhase = true;
+
+        // 背景と霧を薄黒くする
+        scene.background.setHex(0x1a1a1a);
+        scene.fog.color.setHex(0x1a1a1a);
+
+        // 全員を「赤い目」テクスチャに変更
+        if (angryTexture) {
+            swataros.forEach(swataro => {
+                swataro.material.map = angryTexture;
+                swataro.material.needsUpdate = true;
+            });
+        }
+    }
+
+    // ★ レーザーのアニメーション（フェードアウトして消える）
+    for (let i = lasers.length - 1; i >= 0; i--) {
+        let laser = lasers[i];
+        laser.material.opacity -= delta * 3; // どんどん透明になる
+        if (laser.material.opacity <= 0) {
+            scene.remove(laser);
+            laser.geometry.dispose();
+            laser.material.dispose();
+            lasers.splice(i, 1); // 配列から削除
+        }
+    }
+
+    // Swataroたちの行動制御
     if (isSummoning) {
-        // --- 召喚中（左クリック長押し）---
-        // 全体を時計回りに回転させる（マイナス方向に角度を増やす）
+        // --- 召喚中（右クリック長押し）---
         ringRotation -= delta * 0.8;
 
-        // プレイヤーを囲む巨大な輪の半径
-        const ringRadius = 1800;
+        // ★ 輪のサイズを徐々に小さくする（最小で半径800まで寄ってくる）
+        if (currentRingRadius > 800) {
+            currentRingRadius -= delta * 2000;
+        }
 
         swataros.forEach((swataro, index) => {
-            // それぞれのSwataroの輪での目標位置を計算
             const angle = ringRotation + (index / swataros.length) * Math.PI * 2;
-            const targetX = camera.position.x + Math.cos(angle) * ringRadius;
-            const targetZ = camera.position.z + Math.sin(angle) * ringRadius;
-            const targetY = swataro.userData.baseY; // ジャンプを止めて地面の高さに
+            const targetX = camera.position.x + Math.cos(angle) * currentRingRadius;
+            const targetZ = camera.position.z + Math.sin(angle) * currentRingRadius;
+            const targetY = swataro.userData.baseY;
 
-            // 目標位置に向かってスムーズに吸い寄せられる（Lerp処理）
             swataro.position.x += (targetX - swataro.position.x) * 5 * delta;
             swataro.position.z += (targetZ - swataro.position.z) * 5 * delta;
             swataro.position.y += (targetY - swataro.position.y) * 5 * delta;
 
-            // プレイヤーの方を向く
             swataro.lookAt(camera.position.x, swataro.position.y, camera.position.z);
         });
 
     } else {
-        // --- 通常時（拡散・徘徊・ジャンプ）---
+        // --- 通常時 ---
         swataros.forEach(swataro => {
-            // 徘徊移動
             swataro.position.x += swataro.userData.speedX * delta;
             swataro.position.z += swataro.userData.speedZ * delta;
 
-            // 見えない壁（世界が広くなったので±4800に拡大）
             if (swataro.position.x > 4800 || swataro.position.x < -4800) swataro.userData.speedX *= -1;
             if (swataro.position.z > 4800 || swataro.position.z < -4800) swataro.userData.speedZ *= -1;
 
-            // ジャンプ処理
             swataro.position.y = swataro.userData.baseY + Math.abs(Math.sin(timeInSeconds * swataro.userData.jumpSpeed + swataro.userData.timeOffset)) * swataro.userData.jumpHeight;
 
-            // プレイヤーの方を向く
             swataro.lookAt(camera.position.x, swataro.position.y, camera.position.z);
         });
     }
 
-    // プレイヤーの移動制御
+    // プレイヤーの移動とジャンプ制御
     if (controls.isLocked === true) {
+        // 摩擦（減速）
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
+
+        // ★ 重力処理（ジャンプ用）
+        velocity.y -= 9.8 * 800.0 * delta;
 
         direction.z = Number(moveForward) - Number(moveBackward);
         direction.x = Number(moveRight) - Number(moveLeft);
         direction.normalize();
 
-        // 空間が広くなったので、移動速度も少しアップ
         const speed = isRunning ? 2500.0 : 1000.0;
 
         if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
 
+        // X, Z方向の移動
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
+
+        // ★ Y方向（高さ）の移動と着地判定
+        controls.getObject().position.y += (velocity.y * delta);
+        if (controls.getObject().position.y < 50) { // 地面の高さ(目の高さ)
+            velocity.y = 0;
+            controls.getObject().position.y = 50;
+            canJump = true; // 着地したら再びジャンプ可能に
+        }
     }
 
     prevTime = time;
